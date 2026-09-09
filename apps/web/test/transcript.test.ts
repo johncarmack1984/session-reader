@@ -144,8 +144,19 @@ test('a known block type with a bad shape fails the line with an informative iss
   if (r.status !== 'invalid') return;
   assert.equal(r.type, 'assistant');
   assert.ok(r.issues.some((i) => i.path === 'message.content[].text' && i.code === 'invalid_type'), J(r.issues));
+  assert.equal(r.issues[0]!.message, 'expected string, received undefined');
   assert.equal(report.invalid.length, 1);
   assert.match(report.invalid[0]!.name, /^assistant: message\.content\[\]\.text invalid_type$/);
+});
+
+test('a malformed block inside a string-or-blocks union is reported at the block, not at the union', () => {
+  const { results } = observe(userLine([{ type: 'tool_result', tool_use_id: 7 }]));
+  const r = results[0]!;
+  assert.equal(r.status, 'invalid');
+  if (r.status !== 'invalid') return;
+  assert.deepEqual(r.issues, [
+    { path: 'message.content[].tool_use_id', code: 'invalid_type', message: 'expected string, received number' },
+  ]);
 });
 
 test('a known line missing a required field is invalid, not unknown', () => {

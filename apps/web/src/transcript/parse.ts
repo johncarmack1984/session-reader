@@ -70,32 +70,51 @@ export function formatPath(path: ReadonlyArray<PropertyKey>): string {
 
 /**
  * Expand `invalid_union` issues into the issues of their most informative
- * branch. Our unions are always "known shapes | loose catch-all", and the
- * catch-all's refinement fails with a `custom` issue, so a branch with only
- * `custom` issues is the fallback and the other branch is the real story.
+ * branch: the one whose issues sit deepest, because a branch that rejected the
+ * value at the union's own position never matched in the first place. Our
+ * unions are always "known shapes | loose catch-all", and the catch-all's
+ * refinement fails with a `custom` issue, so branches with only `custom`
+ * issues are considered last.
  */
-export function flattenIssues(issues: ReadonlyArray<core.$ZodIssue>, depth = 0): Issue[] {
-  const out: Issue[] = [];
+export function flattenIssues(issues: ReadonlyArray<core.$ZodIssue>): Issue[] {
+  return expand(issues, 0).map((i) => ({ path: formatPath(i.path), code: i.code, message: i.message }));
+}
+
+interface RawIssue {
+  path: PropertyKey[];
+  code: string;
+  message: string;
+}
+
+function expand(issues: ReadonlyArray<core.$ZodIssue>, depth: number): RawIssue[] {
+  const out: RawIssue[] = [];
   for (const issue of issues) {
     if (issue.code === 'invalid_union' && depth < 6) {
       const branches = (issue as core.$ZodIssueInvalidUnion).errors ?? [];
       const informative = branches.filter((b) => b.some((i) => i.code !== 'custom'));
-      const pool = informative.length ? informative : branches;
-      const best = pool.reduce<ReadonlyArray<core.$ZodIssue> | undefined>(
-        (acc, b) => (acc === undefined || b.length < acc.length ? b : acc),
+      const candidates = (informative.length ? informative : branches).map((b) => expand(b, depth + 1));
+      const best = candidates.reduce<RawIssue[] | undefined>(
+        (acc, cur) => (acc === undefined || deeper(cur, acc) ? cur : acc),
         undefined,
       );
       if (best && best.length) {
-        const prefix = formatPath(issue.path);
-        for (const inner of flattenIssues(best, depth + 1)) {
-          out.push({ ...inner, path: joinPath(prefix, inner.path) });
-        }
+        for (const inner of best) out.push({ ...inner, path: [...issue.path, ...inner.path] });
         continue;
       }
     }
-    out.push({ path: formatPath(issue.path), code: issue.code, message: describeIssue(issue) });
+    out.push({ path: [...issue.path], code: issue.code, message: describeIssue(issue) });
   }
   return out;
+}
+
+function maxDepth(issues: RawIssue[]): number {
+  return issues.reduce((m, i) => Math.max(m, i.path.length), 0);
+}
+
+function deeper(a: RawIssue[], b: RawIssue[]): boolean {
+  const da = maxDepth(a);
+  const db = maxDepth(b);
+  return da > db || (da === db && a.length < b.length);
 }
 
 /** Our own wording, so reports do not depend on zod's locale bundle. Names JS types only, never values. */
@@ -121,10 +140,4 @@ function jsType(value: unknown): string {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
   return typeof value;
-}
-
-function joinPath(prefix: string, inner: string): string {
-  if (!prefix) return inner;
-  if (!inner) return prefix;
-  return inner.startsWith('[') ? `${prefix}${inner}` : `${prefix}.${inner}`;
 }

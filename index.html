@@ -1,0 +1,873 @@
+<title>Session Reader</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=Space+Mono:wght@400;700&display=swap">
+<style>
+:root {
+  --ground: #f4f1eb;
+  --surface: #ffffff;
+  --surface-dim: #edeae3;
+  --text: #2b2722;
+  --text-2: #6e6960;
+  --text-3: #9e978c;
+  --accent-user: #2455a4;
+  --accent-asst: #6d35b4;
+  --accent-tool: #a65f11;
+  --accent-think: #5a7a6a;
+  --accent-sys: #7a7068;
+  --accent-err: #b83030;
+  --border: #ddd8cf;
+  --border-light: #ebe7e0;
+  --code-bg: #eae6de;
+  --code-text: #3a3530;
+  --shadow: rgba(40, 35, 25, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #131417;
+    --surface: #1b1c22;
+    --surface-dim: #16171c;
+    --text: #d5d1ca;
+    --text-2: #807a70;
+    --text-3: #5a5548;
+    --accent-user: #6ba3f5;
+    --accent-asst: #b08aee;
+    --accent-tool: #e8a33d;
+    --accent-think: #6eaa8e;
+    --accent-sys: #8a8278;
+    --accent-err: #f06060;
+    --border: #28292f;
+    --border-light: #202128;
+    --code-bg: #18191e;
+    --code-text: #c5c0b8;
+    --shadow: rgba(0, 0, 0, 0.2);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #131417;
+  --surface: #1b1c22;
+  --surface-dim: #16171c;
+  --text: #d5d1ca;
+  --text-2: #807a70;
+  --text-3: #5a5548;
+  --accent-user: #6ba3f5;
+  --accent-asst: #b08aee;
+  --accent-tool: #e8a33d;
+  --accent-think: #6eaa8e;
+  --accent-sys: #8a8278;
+  --accent-err: #f06060;
+  --border: #28292f;
+  --border-light: #202128;
+  --code-bg: #18191e;
+  --code-text: #c5c0b8;
+  --shadow: rgba(0, 0, 0, 0.2);
+}
+
+body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: 'Source Sans 3', 'Source Sans Pro', system-ui, sans-serif;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+/* ---- Landing ---- */
+#landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  padding: 2rem;
+  text-align: center;
+}
+#landing h1 {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.35rem;
+}
+.subtitle {
+  color: var(--text-2);
+  font-size: 1.05rem;
+  margin: 0 0 2rem;
+}
+.drop-zone {
+  width: 100%;
+  max-width: 460px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 2.5rem 2rem;
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
+}
+.drop-zone.drag-over {
+  border-color: var(--accent-user);
+  background: color-mix(in srgb, var(--accent-user) 6%, transparent);
+}
+.drop-icon {
+  font-family: 'Space Mono', monospace;
+  font-size: 2rem;
+  color: var(--text-3);
+  margin-bottom: 0.75rem;
+  opacity: 0.7;
+}
+.drop-zone p {
+  margin: 0 0 0.75rem;
+  color: var(--text-2);
+}
+.drop-or {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+}
+.browse-btn {
+  display: inline-block;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 400;
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.browse-btn:hover { border-color: var(--accent-user); }
+.hint {
+  margin-top: 1.5rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text-3);
+}
+.error-msg {
+  margin-top: 1rem;
+  color: var(--accent-err);
+  font-size: 0.9rem;
+}
+
+/* ---- Session ---- */
+#session { padding: 0 1rem 4rem; }
+.meta-bar {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 1rem 0 1.25rem;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.back-btn {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.back-btn:hover { color: var(--text); border-color: var(--text-3); }
+.meta-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.5rem;
+  font-size: 0.78rem;
+  color: var(--text-2);
+  font-family: 'Space Mono', monospace;
+}
+.meta-fields dt { color: var(--text-3); }
+.meta-fields dd { margin: 0; }
+
+/* ---- Transcript ---- */
+.transcript {
+  max-width: 780px;
+  margin: 0 auto;
+  padding-top: 0.5rem;
+}
+.turn-marker {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 1.75rem 0 0.5rem;
+  border-top: 1px solid var(--border-light);
+  margin-top: 0.75rem;
+}
+.turn-marker:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 1rem;
+}
+
+/* ---- Entries ---- */
+.entry {
+  margin: 0.6rem 0;
+  padding: 0.6rem 0 0.6rem 1rem;
+  border-left: 3px solid transparent;
+  position: relative;
+}
+.entry--user { border-left-color: var(--accent-user); }
+.entry--assistant { border-left-color: var(--accent-asst); }
+
+.entry__role {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+.entry--user .entry__role { color: var(--accent-user); }
+.entry--assistant .entry__role { color: var(--accent-asst); }
+
+.entry__time {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--text-3);
+  position: absolute;
+  top: 0.65rem;
+  right: 0;
+}
+
+.entry__content {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+.entry__content p { margin: 0 0 0.6em; }
+.entry__content p:last-child { margin-bottom: 0; }
+.entry__content h2, .entry__content h3, .entry__content h4 {
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-weight: 600;
+  margin: 1em 0 0.3em;
+  line-height: 1.3;
+}
+.entry__content h2 { font-size: 1.15em; }
+.entry__content h3 { font-size: 1.05em; }
+.entry__content h4 { font-size: 0.95em; }
+.entry__content ul, .entry__content ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+.entry__content li { margin: 0.15em 0; }
+.entry__content strong { font-weight: 600; }
+
+/* ---- Code ---- */
+.inline-code {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.84em;
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+.code-block {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 0.75rem 1rem;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+  white-space: pre;
+}
+
+/* ---- Tool calls (collapsible) ---- */
+.tool-block {
+  margin: 0.35rem 0;
+  border-left: 3px solid var(--accent-tool);
+  border-radius: 0 4px 4px 0;
+  background: var(--surface);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+.tool-block[open] { background: var(--surface); }
+.tool-block summary {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.78rem;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  color: var(--accent-tool);
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  user-select: none;
+}
+.tool-block summary::-webkit-details-marker { display: none; }
+.tool-block summary::before {
+  content: '▸';
+  font-size: 0.7em;
+  transition: transform 0.12s;
+  flex-shrink: 0;
+}
+.tool-block[open] > summary::before { transform: rotate(90deg); }
+.tool-name {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.tool-summary-text {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tool-body {
+  padding: 0 0.75rem 0.6rem;
+  font-size: 0.78rem;
+  overflow-x: auto;
+}
+.tool-param {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0.15rem 0;
+  color: var(--text-2);
+}
+.tool-param-key {
+  color: var(--text-3);
+}
+.tool-input {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 0.4rem;
+}
+.tool-result-content {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--code-text);
+  max-height: 20rem;
+  overflow-y: auto;
+}
+.tool-result-content.is-error { color: var(--accent-err); }
+.truncated-notice {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-3);
+  padding-top: 0.3rem;
+  cursor: pointer;
+}
+.truncated-notice:hover { color: var(--accent-user); }
+
+/* ---- Thinking ---- */
+.thinking-block {
+  margin: 0.35rem 0;
+  border-left: 3px solid var(--accent-think);
+  opacity: 0.7;
+}
+.thinking-block[open] { opacity: 1; }
+.thinking-block summary {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  color: var(--accent-think);
+  list-style: none;
+  user-select: none;
+}
+.thinking-block summary::-webkit-details-marker { display: none; }
+.thinking-block summary::before { content: '▸ '; font-size: 0.7em; }
+.thinking-block[open] > summary::before { content: '▾ '; }
+.thinking-content {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0 0.75rem 0.6rem;
+  color: var(--text-2);
+  max-height: 30rem;
+  overflow-y: auto;
+}
+
+/* ---- System reminders ---- */
+.system-block {
+  margin: 0.3rem 0;
+  border-left: 2px solid var(--border);
+  opacity: 0.6;
+}
+.system-block[open] { opacity: 0.8; }
+.system-block summary {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  color: var(--text-3);
+  list-style: none;
+  user-select: none;
+}
+.system-block summary::-webkit-details-marker { display: none; }
+.system-block summary::before { content: '▸ '; font-size: 0.65em; }
+.system-block[open] > summary::before { content: '▾ '; }
+.system-content {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0 0.6rem 0.5rem;
+  color: var(--text-3);
+  max-height: 25rem;
+  overflow-y: auto;
+}
+
+/* ---- Stats footer ---- */
+.stats {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-3);
+  text-align: center;
+  padding: 2rem 0 1rem;
+  border-top: 1px solid var(--border-light);
+  margin-top: 2rem;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 600px) {
+  #landing { padding: 1.5rem 1rem; }
+  .entry { padding-left: 0.7rem; }
+  .entry__time { position: static; margin-top: 0.3rem; }
+  .meta-fields { font-size: 0.72rem; }
+}
+</style>
+
+<main id="app">
+  <section id="landing">
+    <h1>Session Reader</h1>
+    <p class="subtitle">View Claude Code session transcripts</p>
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">.jsonl</div>
+      <p>Drop a session log here</p>
+      <span class="drop-or">or</span>
+      <label class="browse-btn">
+        Browse files
+        <input type="file" id="file-input" accept=".jsonl" hidden>
+      </label>
+    </div>
+    <p class="hint">~/.claude/projects/&lt;project&gt;/&lt;session-id&gt;.jsonl</p>
+    <div id="error" class="error-msg" hidden></div>
+  </section>
+
+  <section id="session" hidden>
+    <div class="meta-bar">
+      <button class="back-btn" id="back-btn">&larr; New file</button>
+      <dl class="meta-fields" id="meta-fields"></dl>
+    </div>
+    <div class="transcript" id="transcript"></div>
+  </section>
+</main>
+
+<script>
+function escapeHtml(str) {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+
+function truncate(str, max) {
+  if (str.length <= max) return str;
+  return str.slice(0, max);
+}
+
+function formatTime(ts) {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch { return ''; }
+}
+
+function formatDate(ts) {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch { return ''; }
+}
+
+function splitSystemReminders(text) {
+  const parts = [];
+  const re = /<system-reminder>\s*([\s\S]*?)\s*<\/system-reminder>/g;
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    const before = text.slice(last, m.index).trim();
+    if (before) parts.push({ type: 'text', content: before });
+    parts.push({ type: 'system', content: m[1] });
+    last = m.index + m[0].length;
+  }
+  const after = text.slice(last).trim();
+  if (after) parts.push({ type: 'text', content: after });
+  return parts.length ? parts : [{ type: 'text', content: text }];
+}
+
+function renderMarkdown(text) {
+  let h = escapeHtml(text);
+  // Code blocks
+  h = h.replace(/```\w*\n([\s\S]*?)```/g, (_, code) =>
+    '<pre class="code-block">' + code + '</pre>');
+  // Inline code
+  h = h.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+  // Headers
+  h = h.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+  h = h.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+  h = h.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+  h = h.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+  // Bold + italic
+  h = h.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/(?<!\w)\*([^\*\n]+?)\*(?!\w)/g, '<em>$1</em>');
+  // Unordered lists (simple)
+  h = h.replace(/^- (.+)$/gm, '• $1');
+  // Paragraph breaks
+  h = h.replace(/\n\n+/g, '</p><p>');
+  h = '<p>' + h + '</p>';
+  // Single newlines → <br>
+  h = h.replace(/\n/g, '<br>');
+  h = h.replace(/<p>\s*<\/p>/g, '');
+  return h;
+}
+
+function toolSummary(name, input) {
+  switch (name) {
+    case 'Read': return input.file_path ? shortPath(input.file_path) : '';
+    case 'Write': return input.file_path ? shortPath(input.file_path) : '';
+    case 'Edit': return input.file_path ? shortPath(input.file_path) : '';
+    case 'Bash': return (input.command || '').slice(0, 80);
+    case 'WebFetch': return (input.url || '').slice(0, 80);
+    case 'WebSearch': return (input.query || '').slice(0, 60);
+    case 'Agent': return input.description || input.prompt?.slice(0, 60) || '';
+    case 'Workflow': return input.name || input.description || '';
+    case 'Artifact': return input.action || input.file_path || '';
+    default: {
+      const vals = Object.values(input);
+      const first = vals.find(v => typeof v === 'string');
+      return first ? first.slice(0, 60) : '';
+    }
+  }
+}
+
+function shortPath(p) {
+  if (!p) return '';
+  const home = p.indexOf('/Users/');
+  if (home >= 0) {
+    const rest = p.slice(home).replace(/^\/Users\/[^/]+/, '~');
+    return rest;
+  }
+  return p;
+}
+
+// ---- Parser ----
+function parseSession(text) {
+  const lines = text.trim().split('\n');
+  const entries = [];
+  const toolResults = new Map();
+  const metadata = {};
+
+  for (const line of lines) {
+    let obj;
+    try { obj = JSON.parse(line); } catch { continue; }
+
+    if (!metadata.startTime && obj.timestamp) metadata.startTime = obj.timestamp;
+    if (obj.timestamp) metadata.endTime = obj.timestamp;
+    if (!metadata.cwd && obj.cwd) {
+      metadata.cwd = obj.cwd;
+      metadata.version = obj.version;
+      metadata.gitBranch = obj.gitBranch;
+      metadata.sessionId = obj.sessionId;
+      metadata.entrypoint = obj.entrypoint;
+      metadata.permissionMode = obj.permissionMode;
+    }
+
+    if (obj.type === 'user' && obj.message) {
+      const content = obj.message.content;
+      if (typeof content === 'string') {
+        entries.push({ type: 'user-message', content, timestamp: obj.timestamp });
+      } else if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === 'tool_result') {
+            let rc;
+            if (typeof block.content === 'string') rc = block.content;
+            else if (Array.isArray(block.content))
+              rc = block.content.map(b => b.text || '').join('\n');
+            else rc = '';
+            toolResults.set(block.tool_use_id, { content: rc, isError: !!block.is_error });
+          }
+        }
+      }
+    } else if (obj.type === 'assistant' && obj.message) {
+      const content = obj.message.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === 'text' && block.text) {
+            entries.push({ type: 'assistant-text', content: block.text, timestamp: obj.timestamp });
+          } else if (block.type === 'tool_use') {
+            entries.push({
+              type: 'tool-call', id: block.id, name: block.name,
+              input: block.input || {}, timestamp: obj.timestamp,
+            });
+          } else if (block.type === 'thinking' && block.thinking) {
+            entries.push({ type: 'thinking', content: block.thinking, timestamp: obj.timestamp });
+          }
+        }
+      }
+    }
+  }
+  return { entries, toolResults, metadata };
+}
+
+// ---- Renderer ----
+function renderSession({ entries, toolResults, metadata }) {
+  const mf = document.getElementById('meta-fields');
+  mf.innerHTML = '';
+  const addMeta = (label, val) => {
+    if (!val) return;
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = val;
+    mf.append(dt, dd);
+  };
+  addMeta('date', formatDate(metadata.startTime));
+  addMeta('cwd', metadata.cwd ? shortPath(metadata.cwd) : null);
+  addMeta('branch', metadata.gitBranch);
+  addMeta('version', metadata.version);
+  addMeta('mode', metadata.permissionMode);
+
+  const transcript = document.getElementById('transcript');
+  transcript.innerHTML = '';
+  const frag = document.createDocumentFragment();
+
+  let turnNum = 0;
+  let userMsgCount = 0;
+  let toolCallCount = 0;
+  let asstBlockCount = 0;
+
+  for (const entry of entries) {
+    switch (entry.type) {
+      case 'user-message': {
+        turnNum++;
+        userMsgCount++;
+        const marker = document.createElement('div');
+        marker.className = 'turn-marker';
+        marker.textContent = 'Turn ' + turnNum;
+        frag.appendChild(marker);
+
+        const div = document.createElement('div');
+        div.className = 'entry entry--user';
+
+        const role = document.createElement('div');
+        role.className = 'entry__role';
+        role.textContent = 'User';
+        div.appendChild(role);
+
+        if (entry.timestamp) {
+          const time = document.createElement('div');
+          time.className = 'entry__time';
+          time.textContent = formatTime(entry.timestamp);
+          div.appendChild(time);
+        }
+
+        const parts = splitSystemReminders(entry.content);
+        for (const part of parts) {
+          if (part.type === 'text') {
+            const c = document.createElement('div');
+            c.className = 'entry__content';
+            c.innerHTML = renderMarkdown(part.content);
+            div.appendChild(c);
+          } else {
+            const det = document.createElement('details');
+            det.className = 'system-block';
+            const sum = document.createElement('summary');
+            sum.textContent = 'System';
+            det.appendChild(sum);
+            const pre = document.createElement('div');
+            pre.className = 'system-content';
+            pre.textContent = part.content;
+            det.appendChild(pre);
+            div.appendChild(det);
+          }
+        }
+        frag.appendChild(div);
+        break;
+      }
+
+      case 'assistant-text': {
+        asstBlockCount++;
+        const div = document.createElement('div');
+        div.className = 'entry entry--assistant';
+        const role = document.createElement('div');
+        role.className = 'entry__role';
+        role.textContent = 'Claude';
+        div.appendChild(role);
+        const c = document.createElement('div');
+        c.className = 'entry__content';
+        c.innerHTML = renderMarkdown(entry.content);
+        div.appendChild(c);
+        frag.appendChild(div);
+        break;
+      }
+
+      case 'tool-call': {
+        toolCallCount++;
+        const result = toolResults.get(entry.id);
+        const det = document.createElement('details');
+        det.className = 'tool-block';
+        const sum = document.createElement('summary');
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'tool-name';
+        nameSpan.textContent = entry.name;
+        const summarySpan = document.createElement('span');
+        summarySpan.className = 'tool-summary-text';
+        summarySpan.textContent = toolSummary(entry.name, entry.input);
+        sum.append(nameSpan, summarySpan);
+        det.appendChild(sum);
+
+        const body = document.createElement('div');
+        body.className = 'tool-body';
+
+        const keys = Object.keys(entry.input);
+        if (keys.length > 0) {
+          const inputDiv = document.createElement('div');
+          inputDiv.className = 'tool-input';
+          for (const key of keys) {
+            const val = entry.input[key];
+            const valStr = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
+            const paramDiv = document.createElement('div');
+            paramDiv.className = 'tool-param';
+            paramDiv.innerHTML = '<span class="tool-param-key">' + escapeHtml(key) +
+              ':</span> ' + escapeHtml(truncate(valStr, 1000));
+            inputDiv.appendChild(paramDiv);
+          }
+          body.appendChild(inputDiv);
+        }
+
+        if (result) {
+          const resDiv = document.createElement('div');
+          resDiv.className = 'tool-result-content' + (result.isError ? ' is-error' : '');
+          const full = result.content;
+          const MAX = 6000;
+          resDiv.textContent = full.length > MAX ? full.slice(0, MAX) : full;
+          body.appendChild(resDiv);
+          if (full.length > MAX) {
+            const more = document.createElement('div');
+            more.className = 'truncated-notice';
+            const remaining = full.length - MAX;
+            more.textContent = `+ ${(remaining / 1000).toFixed(1)}k more characters`;
+            more.addEventListener('click', () => {
+              resDiv.textContent = full;
+              more.hidden = true;
+            });
+            body.appendChild(more);
+          }
+        }
+        det.appendChild(body);
+        frag.appendChild(det);
+        break;
+      }
+
+      case 'thinking': {
+        const det = document.createElement('details');
+        det.className = 'thinking-block';
+        const sum = document.createElement('summary');
+        const preview = entry.content.slice(0, 100).replace(/\n/g, ' ');
+        sum.textContent = 'Thinking: ' + preview + (entry.content.length > 100 ? '…' : '');
+        det.appendChild(sum);
+        const pre = document.createElement('div');
+        pre.className = 'thinking-content';
+        pre.textContent = entry.content;
+        det.appendChild(pre);
+        frag.appendChild(det);
+        break;
+      }
+    }
+  }
+
+  const stats = document.createElement('div');
+  stats.className = 'stats';
+  const duration = metadata.startTime && metadata.endTime
+    ? Math.round((new Date(metadata.endTime) - new Date(metadata.startTime)) / 1000)
+    : null;
+  const durationStr = duration != null
+    ? (duration >= 60 ? Math.floor(duration / 60) + 'm ' + (duration % 60) + 's' : duration + 's')
+    : '';
+  stats.textContent = [
+    turnNum + ' turns',
+    toolCallCount + ' tool calls',
+    durationStr ? durationStr + ' duration' : '',
+  ].filter(Boolean).join('  ·  ');
+  frag.appendChild(stats);
+
+  transcript.appendChild(frag);
+}
+
+// ---- UI wiring ----
+const landing = document.getElementById('landing');
+const session = document.getElementById('session');
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const backBtn = document.getElementById('back-btn');
+const errorDiv = document.getElementById('error');
+
+function showError(msg) {
+  errorDiv.textContent = msg;
+  errorDiv.hidden = false;
+}
+function clearError() { errorDiv.hidden = true; }
+
+function handleFile(file) {
+  clearError();
+  if (!file.name.endsWith('.jsonl')) {
+    showError('Expected a .jsonl file');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = parseSession(reader.result);
+      if (parsed.entries.length === 0) {
+        showError('No conversation entries found in this file.');
+        return;
+      }
+      renderSession(parsed);
+      landing.hidden = true;
+      session.hidden = false;
+      window.scrollTo(0, 0);
+    } catch (e) {
+      showError('Failed to parse session: ' + e.message);
+    }
+  };
+  reader.onerror = () => showError('Failed to read file');
+  reader.readAsText(file);
+}
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+dropZone.addEventListener('click', e => {
+  if (e.target.tagName !== 'INPUT') fileInput.click();
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  fileInput.value = '';
+});
+backBtn.addEventListener('click', () => {
+  session.hidden = true;
+  landing.hidden = false;
+});
+</script>

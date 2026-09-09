@@ -165,6 +165,31 @@ body {
   font-size: 0.9rem;
 }
 
+.site-footer {
+  position: fixed;
+  bottom: 0.75rem;
+  right: 1rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  z-index: 10;
+}
+
+.site-footer a {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-3);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--text-2);
+}
+
+.site-footer svg {
+  flex-shrink: 0;
+}
+
 /* ---- Session ---- */
 #session {
   padding: 0 1rem 4rem;

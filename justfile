@@ -18,4 +18,4 @@ test:
     pnpm -C apps/web run test
 
 drift *ARGS:
-    pnpm -C apps/web run drift -- {{ARGS}}
+    pnpm -C apps/web run drift {{ARGS}}

@@ -1,0 +1,11 @@
+synth:
+    pnpm run synth
+
+diff:
+    pnpm run diff
+
+deploy:
+    pnpm run deploy
+
+typecheck:
+    pnpm run typecheck

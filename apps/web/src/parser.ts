@@ -1,3 +1,14 @@
+import {
+  DriftCollector,
+  isKnownBlock,
+  parseTranscript,
+  type AssistantLine,
+  type DriftReport,
+  type Envelope,
+  type ToolResultBlock,
+  type UserLine,
+} from './transcript/index.ts';
+
 export interface SessionMetadata {
   startTime?: string;
   endTime?: string;
@@ -7,6 +18,7 @@ export interface SessionMetadata {
   sessionId?: string;
   entrypoint?: string;
   permissionMode?: string;
+  title?: string;
 }
 
 export interface UserMessageEntry {
@@ -46,71 +58,108 @@ export interface ParsedSession {
   entries: Entry[];
   toolResults: Map<string, ToolResult>;
   metadata: SessionMetadata;
+  drift: DriftReport;
 }
 
 export function parseSession(text: string): ParsedSession {
-  const lines = text.trim().split('\n');
+  const drift = new DriftCollector();
+  const results = parseTranscript(text, drift);
   const entries: Entry[] = [];
   const toolResults = new Map<string, ToolResult>();
   const metadata: SessionMetadata = {};
+  let generatedTitle: string | undefined;
 
-  for (const line of lines) {
-    let obj: Record<string, unknown>;
-    try {
-      obj = JSON.parse(line);
-    } catch {
-      continue;
+  for (const result of results) {
+    if (result.status !== 'known') continue;
+    const line = result.line;
+    switch (line.type) {
+      case 'user':
+      case 'assistant':
+      case 'system':
+      case 'attachment':
+        noteEnvelope(line, metadata);
+        break;
+      case 'permission-mode':
+        metadata.permissionMode = line.permissionMode;
+        break;
+      case 'custom-title':
+        metadata.title = line.customTitle;
+        break;
+      case 'ai-title':
+        generatedTitle = line.aiTitle;
+        break;
+      case 'summary':
+        generatedTitle ??= line.summary;
+        break;
     }
+    if (line.type === 'user') collectUser(line, entries, toolResults, metadata);
+    else if (line.type === 'assistant') collectAssistant(line, entries);
+  }
 
-    if (!metadata.startTime && obj.timestamp) metadata.startTime = obj.timestamp as string;
-    if (obj.timestamp) metadata.endTime = obj.timestamp as string;
-    if (!metadata.cwd && obj.cwd) {
-      metadata.cwd = obj.cwd as string;
-      metadata.version = obj.version as string;
-      metadata.gitBranch = obj.gitBranch as string;
-      metadata.sessionId = obj.sessionId as string;
-      metadata.entrypoint = obj.entrypoint as string;
-      metadata.permissionMode = obj.permissionMode as string;
-    }
+  metadata.title ??= generatedTitle;
+  return { entries, toolResults, metadata, drift: drift.report() };
+}
 
-    if (obj.type === 'user' && obj.message) {
-      const msg = obj.message as Record<string, unknown>;
-      const content = msg.content;
-      if (typeof content === 'string') {
-        entries.push({ type: 'user-message', content, timestamp: obj.timestamp as string });
-      } else if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block.type === 'tool_result') {
-            let rc: string;
-            if (typeof block.content === 'string') rc = block.content;
-            else if (Array.isArray(block.content))
-              rc = block.content.map((b: Record<string, unknown>) => (b.text as string) || '').join('\n');
-            else rc = '';
-            toolResults.set(block.tool_use_id as string, { content: rc, isError: !!block.is_error });
-          }
-        }
-      }
-    } else if (obj.type === 'assistant' && obj.message) {
-      const msg = obj.message as Record<string, unknown>;
-      const content = msg.content;
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block.type === 'text' && block.text) {
-            entries.push({ type: 'assistant-text', content: block.text as string, timestamp: obj.timestamp as string });
-          } else if (block.type === 'tool_use') {
-            entries.push({
-              type: 'tool-call',
-              id: block.id as string,
-              name: block.name as string,
-              input: (block.input as Record<string, unknown>) || {},
-              timestamp: obj.timestamp as string,
-            });
-          } else if (block.type === 'thinking' && block.thinking) {
-            entries.push({ type: 'thinking', content: block.thinking as string, timestamp: obj.timestamp as string });
-          }
-        }
-      }
+function noteEnvelope(line: Envelope, metadata: SessionMetadata): void {
+  if (!metadata.startTime) metadata.startTime = line.timestamp;
+  metadata.endTime = line.timestamp;
+  if (!metadata.cwd && line.cwd) {
+    metadata.cwd = line.cwd;
+    metadata.version = line.version;
+    metadata.gitBranch = line.gitBranch;
+    metadata.sessionId = line.sessionId;
+    metadata.entrypoint = line.entrypoint;
+  }
+}
+
+function collectUser(
+  line: UserLine,
+  entries: Entry[],
+  toolResults: Map<string, ToolResult>,
+  metadata: SessionMetadata,
+): void {
+  metadata.permissionMode ??= line.permissionMode;
+  const { content } = line.message;
+  const timestamp = line.timestamp;
+  if (typeof content === 'string') {
+    entries.push({ type: 'user-message', content, timestamp });
+    return;
+  }
+  const texts: string[] = [];
+  for (const block of content) {
+    if (!isKnownBlock(block)) continue;
+    if (block.type === 'text') {
+      texts.push(block.text);
+    } else if (block.type === 'tool_result') {
+      toolResults.set(block.tool_use_id, { content: toolResultText(block), isError: block.is_error === true });
     }
   }
-  return { entries, toolResults, metadata };
+  if (texts.length) entries.push({ type: 'user-message', content: texts.join('\n\n'), timestamp });
+}
+
+function toolResultText(block: ToolResultBlock): string {
+  const { content } = block;
+  if (typeof content === 'string') return content;
+  if (!content) return '';
+  return content.map((b) => (isKnownBlock(b) && b.type === 'text' ? b.text : '')).join('\n');
+}
+
+function collectAssistant(line: AssistantLine, entries: Entry[]): void {
+  const timestamp = line.timestamp;
+  for (const block of line.message.content) {
+    if (!isKnownBlock(block)) continue;
+    switch (block.type) {
+      case 'text':
+        if (block.text) entries.push({ type: 'assistant-text', content: block.text, timestamp });
+        break;
+      case 'tool_use':
+        entries.push({ type: 'tool-call', id: block.id, name: block.name, input: block.input, timestamp });
+        break;
+      case 'thinking':
+        if (block.thinking) entries.push({ type: 'thinking', content: block.thinking, timestamp });
+        break;
+      default:
+        break;
+    }
+  }
 }

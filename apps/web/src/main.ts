@@ -1,5 +1,6 @@
 import './style.css';
 import { parseSession } from './parser.ts';
+import { driftTotal } from './transcript/index.ts';
 import { renderSession } from './renderer.ts';
 import { parseMemory, renderMemory } from './memory-viewer.ts';
 import { openDirectory, scanDroppedFolder, renderFileTree, countFiles, supportsDirectoryPicker, type SessionFile, type ScanResult } from './explorer.ts';
@@ -47,6 +48,7 @@ function showLanding() {
 
 function loadText(text: string) {
   const parsed = parseSession(text);
+  if (driftTotal(parsed.drift) > 0) console.info('[session-reader] schema drift', parsed.drift);
   if (parsed.entries.length === 0) {
     showError('No conversation entries found in this file.');
     return;

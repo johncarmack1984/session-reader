@@ -6,3 +6,13 @@ build:
 
 preview:
     pnpm preview
+
+check:
+    pnpm check
+
+test:
+    pnpm test
+
+# Scan transcripts for schema drift. Defaults to ~/.claude/projects; pass dirs or files.
+drift *ARGS:
+    pnpm drift -- {{ARGS}}

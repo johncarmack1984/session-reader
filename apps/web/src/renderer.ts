@@ -1,5 +1,6 @@
 import type { ParsedSession, Entry, UserMessageEntry, AssistantTextEntry, ToolCallEntry, ThinkingEntry, ToolResult } from './parser.ts';
 import { escapeHtml, formatDateRange, formatTime, renderMarkdown, shortPath, splitSystemReminders, toolSummary, truncate } from './utils.ts';
+import { driftTotal } from './transcript/index.ts';
 
 interface Turn {
   userMessage: UserMessageEntry | null;
@@ -167,7 +168,7 @@ function activitySummary(entries: Entry[]): string {
   return parts.join(' · ') || 'activity';
 }
 
-export function renderSession({ entries, toolResults, metadata }: ParsedSession): void {
+export function renderSession({ entries, toolResults, metadata, drift }: ParsedSession): void {
   const mf = document.getElementById('meta-fields')!;
   mf.innerHTML = '';
   const addMeta = (label: string, val: string | undefined) => {
@@ -239,10 +240,12 @@ export function renderSession({ entries, toolResults, metadata }: ParsedSession)
   const durationStr = duration != null
     ? (duration >= 60 ? Math.floor(duration / 60) + 'm ' + (duration % 60) + 's' : duration + 's')
     : '';
+  const driftCount = driftTotal(drift);
   stats.textContent = [
     turnNum + ' turns',
     totalToolCalls + ' tool calls',
     durationStr ? durationStr + ' duration' : '',
+    driftCount ? driftCount + ' schema drift finding' + (driftCount !== 1 ? 's' : '') + ' (see console)' : '',
   ].filter(Boolean).join('  ·  ');
   frag.appendChild(stats);
 

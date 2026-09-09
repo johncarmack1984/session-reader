@@ -1,4 +1,4 @@
-import * as z from 'zod';
+import * as z from 'zod/mini';
 import { AssistantMessage, UserMessage } from './message.ts';
 
 /*
@@ -25,68 +25,68 @@ const sessionId = z.string();
 /** Fields shared by every conversation line (user, assistant, system, attachment). */
 export const Envelope = z.object({
   uuid: z.string(),
-  parentUuid: z.string().nullable(),
+  parentUuid: z.nullable(z.string()),
   timestamp: z.string(),
   sessionId,
-  isSidechain: z.boolean().optional(),
-  userType: z.string().optional(),
-  entrypoint: z.string().optional(),
-  cwd: z.string().optional(),
-  version: z.string().optional(),
-  gitBranch: z.string().optional(),
-  slug: z.string().optional(),
-  agentId: z.string().optional(),
-  session_id: z.string().optional(),
-  sessionKind: z.string().optional(),
+  isSidechain: z.optional(z.boolean()),
+  userType: z.optional(z.string()),
+  entrypoint: z.optional(z.string()),
+  cwd: z.optional(z.string()),
+  version: z.optional(z.string()),
+  gitBranch: z.optional(z.string()),
+  slug: z.optional(z.string()),
+  agentId: z.optional(z.string()),
+  session_id: z.optional(z.string()),
+  sessionKind: z.optional(z.string()),
 });
 
-export const UserLine = Envelope.extend({
+export const UserLine = z.extend(Envelope, {
   type: z.literal('user'),
   message: UserMessage,
-  promptId: z.string().optional(),
-  promptSource: z.string().optional(),
-  permissionMode: z.string().optional(),
-  origin: z.looseObject({ kind: z.string() }).optional(),
-  isMeta: z.boolean().optional(),
-  isCompactSummary: z.boolean().optional(),
-  isVisibleInTranscriptOnly: z.boolean().optional(),
-  toolUseResult: z.unknown().optional(),
-  sourceToolAssistantUUID: z.string().optional(),
-  sourceToolUseID: z.string().optional(),
-  toolDenialKind: z.string().optional(),
-  interruptedMessageId: z.string().optional(),
-  imagePasteIds: z.unknown().optional(),
-  mcpMeta: z.unknown().optional(),
-  classifierMetaLines: z.unknown().optional(),
-  queuePriority: z.unknown().optional(),
-  queueSkipAttachments: z.unknown().optional(),
-  turnCompanion: z.unknown().optional(),
-  userFeedback: z.unknown().optional(),
-  stackedOriginalInput: z.string().optional(),
-  stackedExpansion: z.boolean().optional(),
+  promptId: z.optional(z.string()),
+  promptSource: z.optional(z.string()),
+  permissionMode: z.optional(z.string()),
+  origin: z.optional(z.looseObject({ kind: z.string() })),
+  isMeta: z.optional(z.boolean()),
+  isCompactSummary: z.optional(z.boolean()),
+  isVisibleInTranscriptOnly: z.optional(z.boolean()),
+  toolUseResult: z.optional(z.unknown()),
+  sourceToolAssistantUUID: z.optional(z.string()),
+  sourceToolUseID: z.optional(z.string()),
+  toolDenialKind: z.optional(z.string()),
+  interruptedMessageId: z.optional(z.string()),
+  imagePasteIds: z.optional(z.unknown()),
+  mcpMeta: z.optional(z.unknown()),
+  classifierMetaLines: z.optional(z.unknown()),
+  queuePriority: z.optional(z.unknown()),
+  queueSkipAttachments: z.optional(z.unknown()),
+  turnCompanion: z.optional(z.unknown()),
+  userFeedback: z.optional(z.unknown()),
+  stackedOriginalInput: z.optional(z.string()),
+  stackedExpansion: z.optional(z.boolean()),
 });
 
-export const AssistantLine = Envelope.extend({
+export const AssistantLine = z.extend(Envelope, {
   type: z.literal('assistant'),
   message: AssistantMessage,
-  requestId: z.string().optional(),
-  effort: z.string().optional(),
-  apiBlockIndex: z.number().optional(),
-  attributionSkill: z.unknown().optional(),
-  attributionAgent: z.unknown().optional(),
-  attributionPlugin: z.unknown().optional(),
-  attributionMcpServer: z.unknown().optional(),
-  attributionMcpTool: z.unknown().optional(),
-  isApiErrorMessage: z.boolean().optional(),
-  error: z.unknown().optional(),
-  errorDetails: z.unknown().optional(),
-  apiErrorStatus: z.number().optional(),
-  quotaLimits: z.unknown().optional(),
-  truncatedAfterOutput: z.unknown().optional(),
-  healsDistinctCarrier: z.boolean().optional(),
+  requestId: z.optional(z.string()),
+  effort: z.optional(z.string()),
+  apiBlockIndex: z.optional(z.number()),
+  attributionSkill: z.optional(z.unknown()),
+  attributionAgent: z.optional(z.unknown()),
+  attributionPlugin: z.optional(z.unknown()),
+  attributionMcpServer: z.optional(z.unknown()),
+  attributionMcpTool: z.optional(z.unknown()),
+  isApiErrorMessage: z.optional(z.boolean()),
+  error: z.optional(z.unknown()),
+  errorDetails: z.optional(z.unknown()),
+  apiErrorStatus: z.optional(z.number()),
+  quotaLimits: z.optional(z.unknown()),
+  truncatedAfterOutput: z.optional(z.unknown()),
+  healsDistinctCarrier: z.optional(z.boolean()),
   /** Pre-2.1 releases wrote per-message cost and latency here. */
-  costUSD: z.number().optional(),
-  durationMs: z.number().optional(),
+  costUSD: z.optional(z.number()),
+  durationMs: z.optional(z.number()),
 });
 
 export const KNOWN_SYSTEM_SUBTYPES: ReadonlySet<string> = new Set([
@@ -102,42 +102,42 @@ export const KNOWN_SYSTEM_SUBTYPES: ReadonlySet<string> = new Set([
   'bridge_status',
 ]);
 
-export const SystemLine = Envelope.extend({
+export const SystemLine = z.extend(Envelope, {
   type: z.literal('system'),
   subtype: z.string(),
-  content: z.string().optional(),
-  level: z.string().optional(),
-  isMeta: z.boolean().optional(),
-  durationMs: z.number().optional(),
-  messageCount: z.number().optional(),
-  logicalParentUuid: z.string().nullable().optional(),
-  compactMetadata: z.unknown().optional(),
-  trigger: z.string().optional(),
-  direction: z.string().optional(),
-  scope: z.string().optional(),
-  originalModel: z.string().optional(),
-  fallbackModel: z.string().optional(),
-  requestId: z.string().optional(),
-  apiRefusalCategory: z.unknown().optional(),
-  apiRefusalExplanation: z.unknown().optional(),
-  retractedMessageUuids: z.unknown().optional(),
-  refusedUserMessageUuid: z.string().nullable().optional(),
-  error: z.unknown().optional(),
-  retryInMs: z.number().optional(),
-  retryAttempt: z.number().optional(),
-  maxRetries: z.number().optional(),
-  pendingBackgroundAgentCount: z.number().optional(),
-  pendingWorkflowCount: z.number().optional(),
-  cronKind: z.string().optional(),
-  hookCount: z.number().optional(),
-  hookInfos: z.unknown().optional(),
-  hookErrors: z.unknown().optional(),
-  hookAdditionalContext: z.unknown().optional(),
-  preventedContinuation: z.boolean().optional(),
-  stopReason: z.string().optional(),
-  hasOutput: z.boolean().optional(),
-  toolUseID: z.string().optional(),
-  url: z.string().optional(),
+  content: z.optional(z.string()),
+  level: z.optional(z.string()),
+  isMeta: z.optional(z.boolean()),
+  durationMs: z.optional(z.number()),
+  messageCount: z.optional(z.number()),
+  logicalParentUuid: z.optional(z.nullable(z.string())),
+  compactMetadata: z.optional(z.unknown()),
+  trigger: z.optional(z.string()),
+  direction: z.optional(z.string()),
+  scope: z.optional(z.string()),
+  originalModel: z.optional(z.string()),
+  fallbackModel: z.optional(z.string()),
+  requestId: z.optional(z.string()),
+  apiRefusalCategory: z.optional(z.unknown()),
+  apiRefusalExplanation: z.optional(z.unknown()),
+  retractedMessageUuids: z.optional(z.unknown()),
+  refusedUserMessageUuid: z.optional(z.nullable(z.string())),
+  error: z.optional(z.unknown()),
+  retryInMs: z.optional(z.number()),
+  retryAttempt: z.optional(z.number()),
+  maxRetries: z.optional(z.number()),
+  pendingBackgroundAgentCount: z.optional(z.number()),
+  pendingWorkflowCount: z.optional(z.number()),
+  cronKind: z.optional(z.string()),
+  hookCount: z.optional(z.number()),
+  hookInfos: z.optional(z.unknown()),
+  hookErrors: z.optional(z.unknown()),
+  hookAdditionalContext: z.optional(z.unknown()),
+  preventedContinuation: z.optional(z.boolean()),
+  stopReason: z.optional(z.string()),
+  hasOutput: z.optional(z.boolean()),
+  toolUseID: z.optional(z.string()),
+  url: z.optional(z.string()),
 });
 
 export const KNOWN_ATTACHMENT_TYPES: ReadonlySet<string> = new Set([
@@ -183,11 +183,11 @@ export const KNOWN_ATTACHMENT_TYPES: ReadonlySet<string> = new Set([
   'total_tokens_reminder',
 ]);
 
-export const AttachmentLine = Envelope.extend({
+export const AttachmentLine = z.extend(Envelope, {
   type: z.literal('attachment'),
   attachment: z.looseObject({ type: z.string() }),
-  rendered: z.unknown().optional(),
-  renderedInHumanTurn: z.unknown().optional(),
+  rendered: z.optional(z.unknown()),
+  renderedInHumanTurn: z.optional(z.unknown()),
 });
 
 // Session-scoped metadata lines. None carry the envelope.
@@ -196,7 +196,7 @@ export const LastPromptLine = z.object({
   type: z.literal('last-prompt'),
   sessionId,
   leafUuid: z.string(),
-  lastPrompt: z.string().optional(),
+  lastPrompt: z.optional(z.string()),
 });
 
 export const ModeLine = z.object({ type: z.literal('mode'), sessionId, mode: z.string() });
@@ -222,16 +222,16 @@ export const AgentNameLine = z.object({ type: z.literal('agent-name'), sessionId
 export const CostStateLine = z.object({
   type: z.literal('cost-state'),
   sessionId,
-  totalCostUSD: z.number().optional(),
-  totalAPIDuration: z.number().optional(),
-  totalAPIDurationWithoutRetries: z.number().optional(),
-  totalToolDuration: z.number().optional(),
-  totalLinesAdded: z.number().optional(),
-  totalLinesRemoved: z.number().optional(),
-  totalDuration: z.number().optional(),
-  startTime: z.number().optional(),
-  modelUsage: z.unknown().optional(),
-  hasUnknownModelCost: z.boolean().optional(),
+  totalCostUSD: z.optional(z.number()),
+  totalAPIDuration: z.optional(z.number()),
+  totalAPIDurationWithoutRetries: z.optional(z.number()),
+  totalToolDuration: z.optional(z.number()),
+  totalLinesAdded: z.optional(z.number()),
+  totalLinesRemoved: z.optional(z.number()),
+  totalDuration: z.optional(z.number()),
+  startTime: z.optional(z.number()),
+  modelUsage: z.optional(z.unknown()),
+  hasUnknownModelCost: z.optional(z.boolean()),
 });
 
 export const QueueOperationLine = z.object({
@@ -239,8 +239,8 @@ export const QueueOperationLine = z.object({
   sessionId,
   operation: z.string(),
   timestamp: z.string(),
-  content: z.string().optional(),
-  reason: z.string().optional(),
+  content: z.optional(z.string()),
+  reason: z.optional(z.string()),
 });
 
 export const PrLinkLine = z.object({
@@ -256,7 +256,7 @@ export const FileHistorySnapshotLine = z.object({
   type: z.literal('file-history-snapshot'),
   messageId: z.string(),
   snapshot: z.unknown(),
-  isSnapshotUpdate: z.boolean().optional(),
+  isSnapshotUpdate: z.optional(z.boolean()),
 });
 
 export const FileHistoryDeltaLine = z.object({
@@ -280,10 +280,10 @@ export const FrameLinkLine = z.object({
   type: z.literal('frame-link'),
   sessionId,
   timestamp: z.string(),
-  path: z.string().optional(),
-  frameUrl: z.string().optional(),
-  title: z.string().optional(),
-  artifactCount: z.number().optional(),
+  path: z.optional(z.string()),
+  frameUrl: z.optional(z.string()),
+  title: z.optional(z.string()),
+  artifactCount: z.optional(z.number()),
 });
 
 export const ArtifactCommentMonitorLine = z.object({
@@ -306,15 +306,15 @@ export const BridgeSessionLine = z.object({
   sessionId,
   bridgeSessionId: z.string(),
   lastSequenceNum: z.number(),
-  ownerAccountUuid: z.string().optional(),
-  ownerOrganizationUuid: z.string().optional(),
+  ownerAccountUuid: z.optional(z.string()),
+  ownerOrganizationUuid: z.optional(z.string()),
 });
 
 /** Legacy title line, written at the tail of the file before `ai-title` existed. */
 export const SummaryLine = z.object({
   type: z.literal('summary'),
   summary: z.string(),
-  leafUuid: z.string().optional(),
+  leafUuid: z.optional(z.string()),
 });
 
 /** Workflow-run journal lines found under subagents/workflows/wf_*. */
@@ -374,5 +374,11 @@ export type AttachmentLine = z.infer<typeof AttachmentLine>;
 export type Envelope = z.infer<typeof Envelope>;
 
 export const LINE_SCHEMA_BY_TYPE: ReadonlyMap<string, LineSchema> = new Map(
-  LINE_SCHEMAS.map((schema): [string, LineSchema] => [schema.shape.type.value, schema]),
+  LINE_SCHEMAS.map((schema): [string, LineSchema] => [discriminant(schema), schema]),
 );
+
+function discriminant(schema: LineSchema): string {
+  const value = schema.shape.type.def.values[0];
+  if (typeof value !== 'string') throw new Error('line schema without a string `type` literal');
+  return value;
+}

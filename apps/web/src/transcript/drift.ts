@@ -1,4 +1,4 @@
-import type * as z from 'zod';
+import type * as core from 'zod/v4/core';
 import { KNOWN_BLOCK_TYPES } from './blocks.ts';
 import { KNOWN_ATTACHMENT_TYPES, KNOWN_SYSTEM_SUBTYPES, LINE_SCHEMA_BY_TYPE } from './lines.ts';
 import { isRecord, type LineResult } from './parse.ts';
@@ -146,27 +146,27 @@ export class DriftCollector {
   }
 }
 
-// Schema walker. Reads zod's public `def` to compare a raw value against the
+// Schema walker. Reads a schema's `def` (shared by zod and zod/mini) to compare a raw value against the
 // shape that accepted it and returns the paths of keys the shape does not
 // declare. Loose objects, records, and `unknown` are opaque by design.
 
 interface Def {
   type: string;
-  shape?: Record<string, z.ZodType>;
+  shape?: Record<string, core.$ZodType>;
   catchall?: unknown;
-  element?: z.ZodType;
-  options?: readonly z.ZodType[];
-  innerType?: z.ZodType;
+  element?: core.$ZodType;
+  options?: readonly core.$ZodType[];
+  innerType?: core.$ZodType;
   values?: readonly unknown[];
 }
 
-function defOf(schema: z.ZodType): Def {
-  return schema.def as unknown as Def;
+function defOf(schema: core.$ZodType): Def {
+  return schema._zod.def as unknown as Def;
 }
 
 const WRAPPERS = new Set(['optional', 'nullable', 'default', 'nonoptional', 'readonly', 'catch', 'prefault']);
 
-function unwrap(schema: z.ZodType): z.ZodType {
+function unwrap(schema: core.$ZodType): core.$ZodType {
   let s = schema;
   for (let i = 0; i < 8; i++) {
     const d = defOf(s);
@@ -176,13 +176,13 @@ function unwrap(schema: z.ZodType): z.ZodType {
   return s;
 }
 
-export function collectUnknownKeys(value: unknown, schema: z.ZodType): string[] {
+export function collectUnknownKeys(value: unknown, schema: core.$ZodType): string[] {
   const out: string[] = [];
   walk(value, schema, '', out);
   return out;
 }
 
-function walk(value: unknown, schema: z.ZodType, path: string, out: string[]): void {
+function walk(value: unknown, schema: core.$ZodType, path: string, out: string[]): void {
   const s = unwrap(schema);
   const d = defOf(s);
   switch (d.type) {
@@ -211,8 +211,8 @@ function walk(value: unknown, schema: z.ZodType, path: string, out: string[]): v
   }
 }
 
-function flattenOptions(options: readonly z.ZodType[]): z.ZodType[] {
-  const out: z.ZodType[] = [];
+function flattenOptions(options: readonly core.$ZodType[]): core.$ZodType[] {
+  const out: core.$ZodType[] = [];
   for (const o of options) {
     const u = unwrap(o);
     const d = defOf(u);
@@ -224,8 +224,8 @@ function flattenOptions(options: readonly z.ZodType[]): z.ZodType[] {
 
 function pickUnionOption(
   value: unknown,
-  options: readonly z.ZodType[],
-): { schema: z.ZodType; tag?: string } | undefined {
+  options: readonly core.$ZodType[],
+): { schema: core.$ZodType; tag?: string } | undefined {
   const flat = flattenOptions(options);
   if (isRecord(value)) {
     if (typeof value.type === 'string') {

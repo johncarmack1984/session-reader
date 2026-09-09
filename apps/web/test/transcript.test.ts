@@ -69,7 +69,7 @@ function observe(...lines: unknown[]) {
 
 test('registry has one schema per discriminant and matches the block type set', () => {
   assert.equal(LINE_SCHEMA_BY_TYPE.size, LINE_SCHEMAS.length);
-  const blockLiterals = new Set(KnownBlock.def.options.map((o) => o.shape.type.value));
+  const blockLiterals = new Set(KnownBlock.def.options.map((o) => o.shape.type.def.values[0]));
   assert.deepEqual([...blockLiterals].sort(), [...KNOWN_BLOCK_TYPES].sort());
 });
 

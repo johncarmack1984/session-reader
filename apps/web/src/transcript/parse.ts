@@ -1,4 +1,4 @@
-import type * as z from 'zod';
+import type * as core from 'zod/v4/core';
 import { LINE_SCHEMA_BY_TYPE, UnknownLine, type KnownLine } from './lines.ts';
 import type { DriftCollector } from './drift.ts';
 
@@ -18,6 +18,10 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+// `reportInput` attaches the offending value to each issue so describeIssue can
+// name its JS type. Only the type is kept; the value never leaves this module.
+const PARSE_OPTIONS: core.ParseContext<core.$ZodIssue> = { reportInput: true };
+
 /** Parse one JSONL line. Never throws. */
 export function parseLine(text: string): LineResult {
   let json: unknown;
@@ -31,12 +35,12 @@ export function parseLine(text: string): LineResult {
   const type = typeof json.type === 'string' ? json.type : undefined;
   const schema = type === undefined ? undefined : LINE_SCHEMA_BY_TYPE.get(type);
   if (!schema) {
-    const r = UnknownLine.safeParse(json);
+    const r = UnknownLine.safeParse(json, PARSE_OPTIONS);
     return r.success
       ? { status: 'unknown', line: r.data, raw: json }
       : { status: 'invalid', type, issues: flattenIssues(r.error.issues), raw: json };
   }
-  const r = schema.safeParse(json);
+  const r = schema.safeParse(json, PARSE_OPTIONS);
   return r.success
     ? { status: 'known', line: r.data as KnownLine, raw: json }
     : { status: 'invalid', type, issues: flattenIssues(r.error.issues), raw: json };
@@ -70,14 +74,14 @@ export function formatPath(path: ReadonlyArray<PropertyKey>): string {
  * catch-all's refinement fails with a `custom` issue, so a branch with only
  * `custom` issues is the fallback and the other branch is the real story.
  */
-export function flattenIssues(issues: ReadonlyArray<z.core.$ZodIssue>, depth = 0): Issue[] {
+export function flattenIssues(issues: ReadonlyArray<core.$ZodIssue>, depth = 0): Issue[] {
   const out: Issue[] = [];
   for (const issue of issues) {
     if (issue.code === 'invalid_union' && depth < 6) {
-      const branches = (issue as z.core.$ZodIssueInvalidUnion).errors ?? [];
+      const branches = (issue as core.$ZodIssueInvalidUnion).errors ?? [];
       const informative = branches.filter((b) => b.some((i) => i.code !== 'custom'));
       const pool = informative.length ? informative : branches;
-      const best = pool.reduce<ReadonlyArray<z.core.$ZodIssue> | undefined>(
+      const best = pool.reduce<ReadonlyArray<core.$ZodIssue> | undefined>(
         (acc, b) => (acc === undefined || b.length < acc.length ? b : acc),
         undefined,
       );
@@ -89,9 +93,34 @@ export function flattenIssues(issues: ReadonlyArray<z.core.$ZodIssue>, depth = 0
         continue;
       }
     }
-    out.push({ path: formatPath(issue.path), code: issue.code, message: issue.message });
+    out.push({ path: formatPath(issue.path), code: issue.code, message: describeIssue(issue) });
   }
   return out;
+}
+
+/** Our own wording, so reports do not depend on zod's locale bundle. Names JS types only, never values. */
+export function describeIssue(issue: core.$ZodIssue): string {
+  const received = 'input' in issue ? `, received ${jsType(issue.input)}` : '';
+  switch (issue.code) {
+    case 'invalid_type':
+      return `expected ${issue.expected}${received}`;
+    case 'invalid_value':
+      return `expected one of ${issue.values.map(String).join(' | ')}${received}`;
+    case 'invalid_union':
+      return `no variant matched${received}`;
+    case 'unrecognized_keys':
+      return `unrecognized keys ${issue.keys.join(', ')}`;
+    case 'custom':
+      return issue.message;
+    default:
+      return issue.code;
+  }
+}
+
+function jsType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
 }
 
 function joinPath(prefix: string, inner: string): string {

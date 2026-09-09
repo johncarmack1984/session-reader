@@ -157,6 +157,28 @@ function renderEntry(entry: Entry, toolResults: Map<string, ToolResult>): HTMLEl
   }
 }
 
+interface TurnLayout {
+  /** Text before the first tool call or thinking block: "let me check…" */
+  preamble: AssistantTextEntry[];
+  /** Everything between: tool calls, thinking, and interstitial text. Collapsed. */
+  activity: Entry[];
+  /** Text after the last tool call or thinking block: the answer. Part of the chat. */
+  final: AssistantTextEntry[];
+}
+
+function layoutTurn(entries: Entry[]): TurnLayout {
+  let start = 0;
+  while (start < entries.length && entries[start]!.type === 'assistant-text') start++;
+  let end = entries.length;
+  while (end > start && entries[end - 1]!.type === 'assistant-text') end--;
+  if (start >= end) return { preamble: [], activity: [], final: entries as AssistantTextEntry[] };
+  return {
+    preamble: entries.slice(0, start) as AssistantTextEntry[],
+    activity: entries.slice(start, end),
+    final: entries.slice(end) as AssistantTextEntry[],
+  };
+}
+
 function activitySummary(entries: Entry[]): string {
   const tools = entries.filter(e => e.type === 'tool-call').length;
   const thinking = entries.filter(e => e.type === 'thinking').length;
@@ -203,33 +225,27 @@ export function renderSession({ entries, toolResults, metadata, drift }: ParsedS
       frag.appendChild(renderUserEntry(turn.userMessage));
     }
 
-    const leadIdx = turn.assistantEntries.findIndex(e => e.type === 'assistant-text');
-    const rest: Entry[] = [];
+    const layout = layoutTurn(turn.assistantEntries);
 
-    for (let i = 0; i < turn.assistantEntries.length; i++) {
-      const entry = turn.assistantEntries[i]!;
-      if (i === leadIdx) {
-        frag.appendChild(renderAssistantEntry(entry as AssistantTextEntry));
-      } else {
-        rest.push(entry);
-      }
-    }
+    for (const entry of layout.preamble) frag.appendChild(renderAssistantEntry(entry));
 
-    if (rest.length > 0) {
+    if (layout.activity.length > 0) {
       const details = document.createElement('details');
       details.className = 'turn-activity';
       const summary = document.createElement('summary');
-      summary.textContent = activitySummary(rest);
+      summary.textContent = activitySummary(layout.activity);
       details.appendChild(summary);
 
       const content = document.createElement('div');
       content.className = 'turn-activity-content';
-      for (const entry of rest) {
+      for (const entry of layout.activity) {
         content.appendChild(renderEntry(entry, toolResults));
       }
       details.appendChild(content);
       frag.appendChild(details);
     }
+
+    for (const entry of layout.final) frag.appendChild(renderAssistantEntry(entry));
   }
 
   const stats = document.createElement('div');

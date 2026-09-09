@@ -1,28 +1,145 @@
-import type { ParsedSession, Entry, UserMessageEntry, AssistantTextEntry, ToolCallEntry, ThinkingEntry, ToolResult } from './parser.ts';
+import type {
+  ParsedSession,
+  Entry,
+  UserMessageEntry,
+  AssistantTextEntry,
+  ToolCallEntry,
+  ThinkingEntry,
+  CompactionEntry,
+  LocalCommandEntry,
+  MetaEntry,
+  ToolResult,
+} from './parser.ts';
 import { escapeHtml, formatDateRange, formatTime, renderMarkdown, shortPath, splitSystemReminders, toolSummary, truncate } from './utils.ts';
 import { driftTotal } from './transcript/index.ts';
+import { stripAnsi } from './text.ts';
 
-interface Turn {
-  userMessage: UserMessageEntry | null;
+/** What opens a segment: the human, or something injected in the human's slot. */
+type Opener = UserMessageEntry | CompactionEntry | LocalCommandEntry | MetaEntry;
+
+interface Segment {
+  opener: Opener | null;
   assistantEntries: Entry[];
 }
 
-function groupIntoTurns(entries: Entry[]): Turn[] {
-  const turns: Turn[] = [];
-  let current: Turn | null = null;
+function isOpener(entry: Entry): entry is Opener {
+  return (
+    entry.type === 'user-message' ||
+    entry.type === 'compaction' ||
+    entry.type === 'local-command' ||
+    entry.type === 'meta'
+  );
+}
+
+function groupIntoSegments(entries: Entry[]): Segment[] {
+  const segments: Segment[] = [];
+  let current: Segment | null = null;
   for (const entry of entries) {
-    if (entry.type === 'user-message') {
-      current = { userMessage: entry, assistantEntries: [] };
-      turns.push(current);
+    if (isOpener(entry)) {
+      current = { opener: entry, assistantEntries: [] };
+      segments.push(current);
     } else {
       if (!current) {
-        current = { userMessage: null, assistantEntries: [] };
-        turns.push(current);
+        current = { opener: null, assistantEntries: [] };
+        segments.push(current);
       }
       current.assistantEntries.push(entry);
     }
   }
-  return turns;
+  return segments;
+}
+
+function timeEl(timestamp: string | undefined): HTMLElement | null {
+  if (!timestamp) return null;
+  const time = document.createElement('span');
+  time.className = 'entry__time';
+  time.textContent = formatTime(timestamp);
+  return time;
+}
+
+function firstLine(text: string, max: number): string {
+  const line = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return line.length > max ? line.slice(0, max - 1) + '…' : line;
+}
+
+function formatTokens(n: number): string {
+  return n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
+}
+
+function renderCompactionEntry(entry: CompactionEntry): HTMLElement {
+  const det = document.createElement('details');
+  det.className = 'compaction interlude';
+  const sum = document.createElement('summary');
+  const parts = ['Context compacted'];
+  if (entry.trigger) parts.push(entry.trigger);
+  if (entry.preTokens != null) {
+    parts.push(
+      entry.postTokens != null
+        ? formatTokens(entry.preTokens) + ' → ' + formatTokens(entry.postTokens) + ' tokens'
+        : formatTokens(entry.preTokens) + ' tokens',
+    );
+  }
+  if (entry.summary) parts.push('summary');
+  sum.textContent = parts.join(' · ');
+  const time = timeEl(entry.timestamp);
+  if (time) sum.appendChild(time);
+  det.appendChild(sum);
+  if (entry.summary) {
+    const c = document.createElement('div');
+    c.className = 'compaction__content entry__content';
+    c.innerHTML = renderMarkdown(entry.summary);
+    det.appendChild(c);
+  }
+  return det;
+}
+
+function renderLocalCommandEntry(entry: LocalCommandEntry): HTMLElement {
+  const commandText = [entry.command, entry.args].filter(Boolean).join(' ');
+  const chip = document.createElement('code');
+  chip.className = 'local-command__cmd';
+  chip.textContent = (entry.source === 'bash' ? '! ' : '') + (commandText || 'output');
+
+  if (!entry.output) {
+    const div = document.createElement('div');
+    div.className = 'local-command interlude';
+    const row = document.createElement('div');
+    row.className = 'local-command__row';
+    row.appendChild(chip);
+    const time = timeEl(entry.timestamp);
+    if (time) row.appendChild(time);
+    div.appendChild(row);
+    return div;
+  }
+
+  const det = document.createElement('details');
+  det.className = 'local-command interlude';
+  const sum = document.createElement('summary');
+  sum.appendChild(chip);
+  const preview = document.createElement('span');
+  preview.className = 'local-command__preview';
+  preview.textContent = firstLine(entry.output, 80);
+  sum.appendChild(preview);
+  const time = timeEl(entry.timestamp);
+  if (time) sum.appendChild(time);
+  det.appendChild(sum);
+  const out = document.createElement('div');
+  out.className = 'local-command__output' + (entry.isError ? ' is-error' : '');
+  out.textContent = entry.output;
+  det.appendChild(out);
+  return det;
+}
+
+function renderMetaEntry(entry: MetaEntry): HTMLElement {
+  const det = document.createElement('details');
+  det.className = 'system-block interlude';
+  const sum = document.createElement('summary');
+  sum.textContent = entry.label + ' · ' + firstLine(entry.content, 80);
+  det.appendChild(sum);
+  const pre = document.createElement('div');
+  pre.className = 'system-content';
+  pre.textContent = entry.content;
+  det.appendChild(pre);
+  return det;
 }
 
 function renderUserEntry(entry: UserMessageEntry): HTMLElement {
@@ -114,7 +231,7 @@ function renderToolEntry(entry: ToolCallEntry, toolResults: Map<string, ToolResu
   if (result) {
     const resDiv = document.createElement('div');
     resDiv.className = 'tool-result-content' + (result.isError ? ' is-error' : '');
-    const full = result.content;
+    const full = stripAnsi(result.content);
     const MAX = 6000;
     resDiv.textContent = full.length > MAX ? full.slice(0, MAX) : full;
     body.appendChild(resDiv);
@@ -154,6 +271,9 @@ function renderEntry(entry: Entry, toolResults: Map<string, ToolResult>): HTMLEl
     case 'assistant-text': return renderAssistantEntry(entry);
     case 'tool-call': return renderToolEntry(entry, toolResults);
     case 'thinking': return renderThinkingEntry(entry);
+    case 'compaction': return renderCompactionEntry(entry);
+    case 'local-command': return renderLocalCommandEntry(entry);
+    case 'meta': return renderMetaEntry(entry);
   }
 }
 
@@ -211,21 +331,24 @@ export function renderSession({ entries, toolResults, metadata, drift }: ParsedS
   transcript.innerHTML = '';
   const frag = document.createDocumentFragment();
 
-  const turns = groupIntoTurns(entries);
+  const segments = groupIntoSegments(entries);
   let turnNum = 0;
   const totalToolCalls = entries.filter(e => e.type === 'tool-call').length;
 
-  for (const turn of turns) {
-    if (turn.userMessage) {
+  for (const segment of segments) {
+    const opener = segment.opener;
+    if (opener?.type === 'user-message') {
       turnNum++;
       const marker = document.createElement('div');
       marker.className = 'turn-marker';
       marker.textContent = 'Turn ' + turnNum;
       frag.appendChild(marker);
-      frag.appendChild(renderUserEntry(turn.userMessage));
+      frag.appendChild(renderUserEntry(opener));
+    } else if (opener) {
+      frag.appendChild(renderEntry(opener, toolResults));
     }
 
-    const layout = layoutTurn(turn.assistantEntries);
+    const layout = layoutTurn(segment.assistantEntries);
 
     for (const entry of layout.preamble) frag.appendChild(renderAssistantEntry(entry));
 

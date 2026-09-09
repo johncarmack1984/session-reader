@@ -1,0 +1,7 @@
+node_modules
+dist
+
+# Local Claude Code config
+CLAUDE.md
+CLAUDE.local.md
+.claude/

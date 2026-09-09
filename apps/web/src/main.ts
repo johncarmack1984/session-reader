@@ -1,22 +1,28 @@
 import './style.css';
 import { parseSession } from './parser.ts';
 import { renderSession } from './renderer.ts';
-import { openDirectory, scanDroppedFolder, renderFileTree, countFiles, supportsDirectoryPicker, type SessionFile, type FolderNode } from './explorer.ts';
+import { parseMemory, renderMemory } from './memory-viewer.ts';
+import { openDirectory, scanDroppedFolder, renderFileTree, countFiles, supportsDirectoryPicker, type SessionFile, type ScanResult } from './explorer.ts';
 
 const appLayout = document.getElementById('app-layout')!;
 const sidebar = document.getElementById('sidebar')!;
 const landing = document.getElementById('landing')!;
 const session = document.getElementById('session')!;
+const memoryView = document.getElementById('memory-view')!;
+const memoryContent = document.getElementById('memory-content')!;
 const dropZone = document.getElementById('drop-zone')!;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const browseBtn = document.getElementById('browse-btn')!;
 const backBtn = document.getElementById('back-btn')!;
+const memoryBackBtn = document.getElementById('memory-back-btn')!;
 const errorDiv = document.getElementById('error')!;
 const changeFolderBtn = document.getElementById('change-folder')!;
 const closeSidebarBtn = document.getElementById('close-sidebar')!;
 const folderNameEl = document.getElementById('folder-name')!;
 const fileCountEl = document.getElementById('file-count')!;
 const fileTree = document.getElementById('file-tree')!;
+const memoryTree = document.getElementById('memory-tree')!;
+const sidebarTabs = sidebar.querySelectorAll<HTMLButtonElement>('.sidebar-tab');
 
 function showError(msg: string) {
   errorDiv.textContent = msg;
@@ -27,15 +33,16 @@ function clearError() {
   errorDiv.hidden = true;
 }
 
-function showSession() {
+function hideAllSections() {
   landing.hidden = true;
-  session.hidden = false;
+  session.hidden = true;
+  memoryView.hidden = true;
 }
 
 function showLanding() {
-  session.hidden = true;
+  hideAllSections();
   landing.hidden = false;
-  fileTree.querySelectorAll('.tree-file.active').forEach(el => el.classList.remove('active'));
+  sidebar.querySelectorAll('.tree-file.active').forEach(el => el.classList.remove('active'));
 }
 
 function loadText(text: string) {
@@ -45,7 +52,8 @@ function loadText(text: string) {
     return;
   }
   renderSession(parsed);
-  showSession();
+  hideAllSections();
+  session.hidden = false;
   window.scrollTo(0, 0);
 }
 
@@ -71,30 +79,56 @@ async function handleFileSelect(file: SessionFile) {
   clearError();
   try {
     const text = await file.read();
-    loadText(text);
+    if (file.fileType === 'memory') {
+      const parsed = parseMemory(text);
+      renderMemory(parsed, memoryContent);
+      hideAllSections();
+      memoryView.hidden = false;
+      window.scrollTo(0, 0);
+    } else {
+      loadText(text);
+    }
   } catch (e) {
-    showError('Failed to read session: ' + (e as Error).message);
+    showError('Failed to read file: ' + (e as Error).message);
   }
 }
 
-function showFolder(folder: FolderNode) {
-  const count = countFiles(folder);
-  folderNameEl.textContent = folder.name || 'Sessions';
-  fileCountEl.textContent = `${count} session${count !== 1 ? 's' : ''}`;
-  renderFileTree(folder, fileTree, handleFileSelect);
+function showFolder(result: ScanResult) {
+  const sessionCount = countFiles(result.sessions);
+  const memoryCount = countFiles(result.memories);
+  folderNameEl.textContent = result.sessions.name || 'Sessions';
+  fileCountEl.textContent = `${sessionCount} session${sessionCount !== 1 ? 's' : ''}` +
+    (memoryCount > 0 ? ` · ${memoryCount} memor${memoryCount !== 1 ? 'ies' : 'y'}` : '');
+
+  renderFileTree(result.sessions, fileTree, handleFileSelect);
+  renderFileTree(result.memories, memoryTree, handleFileSelect);
+
+  const memoryTab = sidebar.querySelector<HTMLButtonElement>('.sidebar-tab[data-tab="memories"]')!;
+  memoryTab.hidden = memoryCount === 0;
+
   sidebar.hidden = false;
   appLayout.classList.add('has-sidebar');
 }
 
 async function handleOpenFolder() {
   try {
-    const folder = await openDirectory();
-    if (!folder) return;
-    showFolder(folder);
+    const result = await openDirectory();
+    if (!result) return;
+    showFolder(result);
   } catch (e) {
     showError('Failed to open folder: ' + (e as Error).message);
   }
 }
+
+sidebarTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    sidebarTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    fileTree.hidden = target !== 'sessions';
+    memoryTree.hidden = target !== 'memories';
+  });
+});
 
 dropZone.addEventListener('dragover', (e) => {
   e.preventDefault();
@@ -106,9 +140,9 @@ dropZone.addEventListener('drop', async (e) => {
   dropZone.classList.remove('drag-over');
   if (!e.dataTransfer) return;
 
-  const folder = await scanDroppedFolder(e.dataTransfer);
-  if (folder) {
-    showFolder(folder);
+  const result = await scanDroppedFolder(e.dataTransfer);
+  if (result) {
+    showFolder(result);
     return;
   }
 
@@ -129,6 +163,7 @@ fileInput.addEventListener('change', () => {
 });
 
 backBtn.addEventListener('click', showLanding);
+memoryBackBtn.addEventListener('click', showLanding);
 if (supportsDirectoryPicker) {
   changeFolderBtn.addEventListener('click', handleOpenFolder);
 }

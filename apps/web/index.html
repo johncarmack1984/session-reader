@@ -19,8 +19,13 @@
             <button class="sidebar-close" id="close-sidebar" title="Close sidebar">&times;</button>
           </div>
           <span class="sidebar-count" id="file-count"></span>
+          <div class="sidebar-tabs">
+            <button class="sidebar-tab active" data-tab="sessions">Sessions</button>
+            <button class="sidebar-tab" data-tab="memories">Memory</button>
+          </div>
         </div>
-        <div class="file-tree" id="file-tree"></div>
+        <div class="file-tree" id="file-tree" data-tab="sessions"></div>
+        <div class="file-tree" id="memory-tree" data-tab="memories" hidden></div>
       </aside>
       <main id="app">
         <section id="landing">
@@ -43,6 +48,13 @@
             <dl class="meta-fields" id="meta-fields"></dl>
           </div>
           <div class="transcript" id="transcript"></div>
+        </section>
+
+        <section id="memory-view" hidden>
+          <div class="meta-bar">
+            <button class="back-btn" id="memory-back-btn">&larr; Back</button>
+          </div>
+          <div class="memory-content" id="memory-content"></div>
         </section>
       </main>
     </div>

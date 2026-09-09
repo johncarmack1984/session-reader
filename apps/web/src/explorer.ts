@@ -3,7 +3,28 @@ export interface SessionFile {
   relativePath: string;
   lastModified: number;
   size: number;
+  fileType: 'session' | 'memory';
+  startTime?: string;
+  endTime?: string;
   read(): Promise<string>;
+}
+
+async function peekTimestamps(blob: Blob): Promise<{ start?: string; end?: string }> {
+  const headText = await blob.slice(0, 512).text();
+  const tailText = await blob.slice(Math.max(0, blob.size - 2048)).text();
+
+  const extractTs = (text: string, last: boolean): string | undefined => {
+    const re = /"timestamp"\s*:\s*"([^"]+)"/g;
+    let match;
+    let found: string | undefined;
+    while ((match = re.exec(text)) !== null) {
+      found = match[1];
+      if (!last) return found;
+    }
+    return found;
+  };
+
+  return { start: extractTs(headText, false), end: extractTs(tailText, true) };
 }
 
 export interface FolderNode {
@@ -12,33 +33,63 @@ export interface FolderNode {
   folders: FolderNode[];
 }
 
+export interface ScanResult {
+  sessions: FolderNode;
+  memories: FolderNode;
+}
+
 export const supportsDirectoryPicker = 'showDirectoryPicker' in window;
 
-async function scanHandle(handle: FileSystemDirectoryHandle, basePath: string): Promise<FolderNode> {
-  const node: FolderNode = { name: handle.name, files: [], folders: [] };
+const EXTENSIONS: Record<string, 'session' | 'memory'> = {
+  '.jsonl': 'session',
+  '.md': 'memory',
+};
+
+function matchExt(name: string): { ext: string; type: 'session' | 'memory' } | null {
+  for (const [ext, type] of Object.entries(EXTENSIONS)) {
+    if (name.endsWith(ext)) return { ext, type };
+  }
+  return null;
+}
+
+async function scanHandle(handle: FileSystemDirectoryHandle, basePath: string): Promise<ScanResult> {
+  const sessions: FolderNode = { name: handle.name, files: [], folders: [] };
+  const memories: FolderNode = { name: handle.name, files: [], folders: [] };
+
   for await (const entry of handle.values()) {
-    if (entry.kind === 'file' && entry.name.endsWith('.jsonl')) {
+    const m = entry.kind === 'file' ? matchExt(entry.name) : null;
+    if (entry.kind === 'file' && m) {
       const fh = entry as FileSystemFileHandle;
       const file = await fh.getFile();
-      node.files.push({
-        name: entry.name.replace(/\.jsonl$/, ''),
+      const ts = m.type === 'session' ? await peekTimestamps(file) : undefined;
+      const item: SessionFile = {
+        name: entry.name.replace(new RegExp(`\\${m.ext}$`), ''),
         relativePath: basePath ? `${basePath}/${entry.name}` : entry.name,
         lastModified: file.lastModified,
         size: file.size,
+        fileType: m.type,
+        startTime: ts?.start,
+        endTime: ts?.end,
         read: async () => (await fh.getFile()).text(),
-      });
+      };
+      if (m.type === 'session') sessions.files.push(item);
+      else memories.files.push(item);
     } else if (entry.kind === 'directory') {
       const sub = await scanHandle(
         entry as FileSystemDirectoryHandle,
         basePath ? `${basePath}/${entry.name}` : entry.name,
       );
-      if (sub.files.length > 0 || sub.folders.length > 0) {
-        node.folders.push(sub);
+      if (sub.sessions.files.length > 0 || sub.sessions.folders.length > 0) {
+        sessions.folders.push(sub.sessions);
+      }
+      if (sub.memories.files.length > 0 || sub.memories.folders.length > 0) {
+        memories.folders.push(sub.memories);
       }
     }
   }
-  sortNode(node);
-  return node;
+  sortNode(sessions);
+  sortNode(memories);
+  return { sessions, memories };
 }
 
 function sortNode(node: FolderNode) {
@@ -51,7 +102,7 @@ export function countFiles(node: FolderNode): number {
   return node.files.length + node.folders.reduce((sum, f) => sum + countFiles(f), 0);
 }
 
-export async function openDirectory(): Promise<FolderNode | null> {
+export async function openDirectory(): Promise<ScanResult | null> {
   if (!supportsDirectoryPicker) return null;
   try {
     const handle = await window.showDirectoryPicker!({ mode: 'read' });
@@ -62,9 +113,10 @@ export async function openDirectory(): Promise<FolderNode | null> {
   }
 }
 
-async function scanFileSystemEntry(entry: FileSystemEntry, basePath: string): Promise<FolderNode> {
-  const node: FolderNode = { name: entry.name, files: [], folders: [] };
-  if (!entry.isDirectory) return node;
+async function scanFileSystemEntry(entry: FileSystemEntry, basePath: string): Promise<ScanResult> {
+  const sessions: FolderNode = { name: entry.name, files: [], folders: [] };
+  const memories: FolderNode = { name: entry.name, files: [], folders: [] };
+  if (!entry.isDirectory) return { sessions, memories };
 
   const dirReader = (entry as FileSystemDirectoryEntry).createReader();
   const readAll = (): Promise<FileSystemEntry[]> => new Promise((resolve, reject) => {
@@ -85,30 +137,41 @@ async function scanFileSystemEntry(entry: FileSystemEntry, basePath: string): Pr
   const children = await readAll();
   for (const child of children) {
     const childPath = basePath ? `${basePath}/${child.name}` : child.name;
-    if (child.isFile && child.name.endsWith('.jsonl')) {
+    const m = child.isFile ? matchExt(child.name) : null;
+    if (child.isFile && m) {
       const file = await new Promise<File>((resolve, reject) =>
         (child as FileSystemFileEntry).file(resolve, reject),
       );
       const f = file;
-      node.files.push({
-        name: child.name.replace(/\.jsonl$/, ''),
+      const ts = m.type === 'session' ? await peekTimestamps(file) : undefined;
+      const item: SessionFile = {
+        name: child.name.replace(new RegExp(`\\${m.ext}$`), ''),
         relativePath: childPath,
         lastModified: file.lastModified,
         size: file.size,
+        fileType: m.type,
+        startTime: ts?.start,
+        endTime: ts?.end,
         read: () => f.text(),
-      });
+      };
+      if (m.type === 'session') sessions.files.push(item);
+      else memories.files.push(item);
     } else if (child.isDirectory) {
       const sub = await scanFileSystemEntry(child, childPath);
-      if (sub.files.length > 0 || sub.folders.length > 0) {
-        node.folders.push(sub);
+      if (sub.sessions.files.length > 0 || sub.sessions.folders.length > 0) {
+        sessions.folders.push(sub.sessions);
+      }
+      if (sub.memories.files.length > 0 || sub.memories.folders.length > 0) {
+        memories.folders.push(sub.memories);
       }
     }
   }
-  sortNode(node);
-  return node;
+  sortNode(sessions);
+  sortNode(memories);
+  return { sessions, memories };
 }
 
-export async function scanDroppedFolder(dataTransfer: DataTransfer): Promise<FolderNode | null> {
+export async function scanDroppedFolder(dataTransfer: DataTransfer): Promise<ScanResult | null> {
   const items = dataTransfer.items;
   for (let i = 0; i < items.length; i++) {
     const entry = items[i]?.webkitGetAsEntry?.();
@@ -137,8 +200,15 @@ export function renderFileTree(
 
     const meta = document.createElement('span');
     meta.className = 'tree-file-meta';
-    const d = new Date(file.lastModified);
-    const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const fmt = (ts: string) => new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    let dateStr: string;
+    if (file.startTime) {
+      const start = fmt(file.startTime);
+      const end = file.endTime ? fmt(file.endTime) : start;
+      dateStr = start === end ? start : `${start} – ${end}`;
+    } else {
+      dateStr = new Date(file.lastModified).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
     const sizeStr = file.size < 1024 * 1024
       ? Math.round(file.size / 1024) + ' KB'
       : (file.size / (1024 * 1024)).toFixed(1) + ' MB';
@@ -146,7 +216,7 @@ export function renderFileTree(
 
     btn.append(nameEl, meta);
     btn.addEventListener('click', () => {
-      container.querySelectorAll('.tree-file.active').forEach(el => el.classList.remove('active'));
+      container.closest('#sidebar')?.querySelectorAll('.tree-file.active').forEach(el => el.classList.remove('active'));
       btn.classList.add('active');
       onSelect(file);
     });
@@ -185,7 +255,7 @@ export function renderFileTree(
   if (countFiles(root) === 0) {
     const empty = document.createElement('div');
     empty.className = 'tree-empty';
-    empty.textContent = 'No .jsonl files found';
+    empty.textContent = 'No files found';
     container.appendChild(empty);
   }
 }

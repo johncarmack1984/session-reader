@@ -625,6 +625,108 @@ body {
   overflow-y: auto;
 }
 
+/* ---- Interludes: compaction, local commands, injected meta ---- */
+.interlude {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-light);
+  position: relative;
+}
+
+.interlude > summary .entry__time,
+.interlude .local-command__row .entry__time {
+  top: auto;
+  position: static;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.compaction > summary,
+.local-command > summary,
+.local-command__row {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  border-left: 3px solid var(--accent-sys);
+}
+
+.compaction > summary,
+.local-command > summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--accent-sys);
+}
+
+.compaction > summary::-webkit-details-marker,
+.local-command > summary::-webkit-details-marker {
+  display: none;
+}
+
+.compaction > summary::before,
+.local-command > summary::before {
+  content: '\25B8';
+  font-size: 0.7em;
+  flex-shrink: 0;
+}
+
+.compaction[open] > summary::before,
+.local-command[open] > summary::before {
+  content: '\25BE';
+}
+
+.compaction__content {
+  margin-left: 3px;
+  padding: 0.25rem 0.75rem 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-2);
+  max-height: 40rem;
+  overflow-y: auto;
+}
+
+.local-command__cmd {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text);
+  background: var(--code-bg);
+  padding: 0.1em 0.45em;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.local-command__preview {
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.local-command__output {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-left: 3px;
+  padding: 0 0.75rem 0.6rem;
+  color: var(--code-text);
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.local-command__output.is-error {
+  color: var(--accent-err);
+}
+
+.system-block.interlude {
+  opacity: 0.75;
+}
+
 /* ---- Turn activity (collapsible mid-turn) ---- */
 .turn-activity {
   margin: 0.25rem 0 0.25rem 1rem;

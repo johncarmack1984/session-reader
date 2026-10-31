@@ -19,6 +19,12 @@ A session renders as numbered turns:
 
 A metadata bar shows the date range, working directory, git branch, CLI version, and permission mode. A stats line at the bottom counts turns, tool calls, and duration. Memory files render their frontmatter (name, description, type) as a header over the markdown. The theme follows your OS.
 
+### Search
+
+**Find in session** (the Find button, or ⌘F / Ctrl+F while a session is open) highlights every match in the transcript and steps through them with Enter and Shift+Enter. Unlike the browser's own find, it reaches text inside collapsed blocks, folded system reminders, and the cut-off part of a long tool result: stepping onto a match opens the block it is in, and each collapsed block shows how many matches it holds. Matching is a case-insensitive substring. Press ⌘F again while the bar has focus to get the browser's find instead.
+
+**Search a folder** from the box at the top of the sidebar. Typing filters the tree by path, which is the quick way to a project when every session is a UUID. Enter searches the contents of every session and memory file instead, in a worker so the page stays responsive, and keeps only the files that match, each with its match count. Opening a hit carries the query into the session view. A 2 GB folder takes a few seconds: each file is read once, scanned with one regex pass, and only the lines that hit are parsed. Files are read the same way the viewer reads them and go nowhere.
+
 ## How a transcript is read
 
 Anthropic calls the session format internal and says it can change without notice. I believe them. So the schemas in [`apps/web/src/transcript/`](apps/web/src/transcript/) expect to be wrong about the next release, and are built to report the difference instead of dying on it:

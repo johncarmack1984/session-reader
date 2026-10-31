@@ -4,6 +4,8 @@ import { driftTotal } from './transcript/index.ts';
 import { renderSession } from './renderer.ts';
 import { parseMemory, renderMemory } from './memory-viewer.ts';
 import { openDirectory, scanDroppedFolder, renderFileTree, countFiles, supportsDirectoryPicker, type SessionFile, type ScanResult } from './explorer.ts';
+import { createFind } from './find.ts';
+import { createSidebarSearch } from './sidebar-search.ts';
 
 const appLayout = document.getElementById('app-layout')!;
 const sidebar = document.getElementById('sidebar')!;
@@ -24,6 +26,24 @@ const fileCountEl = document.getElementById('file-count')!;
 const fileTree = document.getElementById('file-tree')!;
 const memoryTree = document.getElementById('memory-tree')!;
 const sidebarTabs = sidebar.querySelectorAll<HTMLButtonElement>('.sidebar-tab');
+
+const find = createFind({
+  root: document.getElementById('transcript')!,
+  bar: document.getElementById('find-bar')!,
+  input: document.getElementById('find-input') as HTMLInputElement,
+  count: document.getElementById('find-count')!,
+  prev: document.getElementById('find-prev') as HTMLButtonElement,
+  next: document.getElementById('find-next') as HTMLButtonElement,
+  close: document.getElementById('find-close') as HTMLButtonElement,
+  button: document.getElementById('find-btn') as HTMLButtonElement,
+  isActive: () => !session.hidden,
+});
+
+const sidebarSearch = createSidebarSearch({
+  input: document.getElementById('tree-search') as HTMLInputElement,
+  status: document.getElementById('tree-search-status')!,
+  trees: [fileTree, memoryTree],
+});
 
 function showError(msg: string) {
   errorDiv.textContent = msg;
@@ -46,7 +66,8 @@ function showLanding() {
   sidebar.querySelectorAll('.tree-file.active').forEach(el => el.classList.remove('active'));
 }
 
-function loadText(text: string) {
+/** Render a transcript. With a query, the find bar opens on it: the session was picked from search hits. */
+function loadText(text: string, query?: string) {
   const parsed = parseSession(text);
   if (driftTotal(parsed.drift) > 0) console.info('[session-reader] schema drift', parsed.drift);
   if (parsed.entries.length === 0) {
@@ -57,6 +78,8 @@ function loadText(text: string) {
   hideAllSections();
   session.hidden = false;
   window.scrollTo(0, 0);
+  if (query) find.open(query);
+  else find.onRender();
 }
 
 function handleFile(file: File) {
@@ -88,7 +111,7 @@ async function handleFileSelect(file: SessionFile) {
       memoryView.hidden = false;
       window.scrollTo(0, 0);
     } else {
-      loadText(text);
+      loadText(text, sidebarSearch.contentQuery ?? undefined);
     }
   } catch (e) {
     showError('Failed to read file: ' + (e as Error).message);
@@ -104,6 +127,7 @@ function showFolder(result: ScanResult) {
 
   renderFileTree(result.sessions, fileTree, handleFileSelect);
   renderFileTree(result.memories, memoryTree, handleFileSelect);
+  sidebarSearch.setFolder(result);
 
   const memoryTab = sidebar.querySelector<HTMLButtonElement>('.sidebar-tab[data-tab="memories"]')!;
   memoryTab.hidden = memoryCount === 0;

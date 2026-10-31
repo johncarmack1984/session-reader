@@ -233,22 +233,32 @@ function renderToolEntry(entry: ToolCallEntry, toolResults: Map<string, ToolResu
     resDiv.className = 'tool-result-content' + (result.isError ? ' is-error' : '');
     const full = stripAnsi(result.content);
     const MAX = 6000;
-    resDiv.textContent = full.length > MAX ? full.slice(0, MAX) : full;
+    resDiv.textContent = full.slice(0, MAX);
     body.appendChild(resDiv);
     if (full.length > MAX) {
+      // The rest stays in the DOM, hidden, so find-in-session reaches it without a click.
+      const tail = document.createElement('span');
+      tail.className = 'result-tail';
+      tail.hidden = true;
+      tail.textContent = full.slice(MAX);
+      resDiv.appendChild(tail);
       const more = document.createElement('div');
       more.className = 'truncated-notice';
       const remaining = full.length - MAX;
       more.textContent = `+ ${(remaining / 1000).toFixed(1)}k more characters`;
-      more.addEventListener('click', () => {
-        resDiv.textContent = full;
-        more.hidden = true;
-      });
+      more.addEventListener('click', () => revealTail(tail));
       body.appendChild(more);
     }
   }
   det.appendChild(body);
   return det;
+}
+
+/** Show the part of a tool result that was cut at the 6,000-character mark, and retire the notice. */
+export function revealTail(tail: HTMLElement): void {
+  tail.hidden = false;
+  const notice = tail.parentElement?.nextElementSibling;
+  if (notice instanceof HTMLElement && notice.classList.contains('truncated-notice')) notice.hidden = true;
 }
 
 function renderThinkingEntry(entry: ThinkingEntry): HTMLElement {

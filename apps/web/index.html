@@ -23,6 +23,10 @@
             <button class="sidebar-tab active" data-tab="sessions">Sessions</button>
             <button class="sidebar-tab" data-tab="memories">Memory</button>
           </div>
+          <div class="sidebar-search">
+            <input type="search" id="tree-search" placeholder="Filter, Enter to search contents" aria-label="Filter or search sessions" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="sidebar-search-status" id="tree-search-status" hidden></div>
         </div>
         <div class="file-tree" id="file-tree" data-tab="sessions"></div>
         <div class="file-tree" id="memory-tree" data-tab="memories" hidden></div>
@@ -43,9 +47,19 @@
         </section>
 
         <section id="session" hidden>
+          <div class="find-row" id="find-bar" hidden>
+            <div class="find-bar">
+              <input type="search" id="find-input" placeholder="Find in session" aria-label="Find in session" autocomplete="off" spellcheck="false" />
+              <span class="find-count" id="find-count"></span>
+              <button class="find-nav" id="find-prev" type="button" title="Previous match (Shift+Enter)">&uarr;</button>
+              <button class="find-nav" id="find-next" type="button" title="Next match (Enter)">&darr;</button>
+              <button class="find-close" id="find-close" type="button" title="Close (Esc)">&times;</button>
+            </div>
+          </div>
           <div class="meta-bar">
             <button class="back-btn" id="back-btn">&larr; Back</button>
             <dl class="meta-fields" id="meta-fields"></dl>
+            <button class="back-btn find-btn" id="find-btn" type="button">Find</button>
           </div>
           <div class="transcript" id="transcript"></div>
         </section>

@@ -4,5 +4,5 @@
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["scripts", "test", "src/transcript", "src/parser.ts"]
+  "include": ["scripts", "test", "src/transcript", "src/parser.ts", "src/search-core.ts"]
 }

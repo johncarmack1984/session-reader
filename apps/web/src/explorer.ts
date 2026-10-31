@@ -6,6 +6,8 @@ export interface SessionFile {
   fileType: 'session' | 'memory';
   startTime?: string;
   endTime?: string;
+  /** What backs the file: a handle from the directory picker, or the File a drop produced. The search worker reads from it. */
+  source: File | FileSystemFileHandle;
   read(): Promise<string>;
 }
 
@@ -70,6 +72,7 @@ async function scanHandle(handle: FileSystemDirectoryHandle, basePath: string): 
         fileType: m.type,
         startTime: ts?.start,
         endTime: ts?.end,
+        source: fh,
         read: async () => (await fh.getFile()).text(),
       };
       if (m.type === 'session') sessions.files.push(item);
@@ -100,6 +103,11 @@ function sortNode(node: FolderNode) {
 
 export function countFiles(node: FolderNode): number {
   return node.files.length + node.folders.reduce((sum, f) => sum + countFiles(f), 0);
+}
+
+/** Every file under a node, in tree order. */
+export function flattenFiles(node: FolderNode): SessionFile[] {
+  return [...node.folders.flatMap(flattenFiles), ...node.files];
 }
 
 export async function openDirectory(): Promise<ScanResult | null> {
@@ -152,6 +160,7 @@ async function scanFileSystemEntry(entry: FileSystemEntry, basePath: string): Pr
         fileType: m.type,
         startTime: ts?.start,
         endTime: ts?.end,
+        source: f,
         read: () => f.text(),
       };
       if (m.type === 'session') sessions.files.push(item);
